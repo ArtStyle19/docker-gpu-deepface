@@ -1,5 +1,6 @@
 # ✅ Use CUDA 12.3 base image
-FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04
+# FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04
+FROM nvidia/cuda:12.3.1-devel-ubuntu22.04
 
 LABEL org.opencontainers.image.source https://github.com/serengil/deepface
 
@@ -14,7 +15,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     python3.10 python3-pip ffmpeg libsm6 libxext6 libhdf5-dev \
     && ln -s /usr/bin/python3.10 /usr/bin/python \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install cmake -y \
+    && rm -rf /var/lib/apt/lists/* 
 
 RUN python -m pip install --upgrade pip
 

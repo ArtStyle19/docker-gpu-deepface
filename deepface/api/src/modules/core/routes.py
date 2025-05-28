@@ -2,7 +2,7 @@
 from typing import Union
 
 # 3rd party dependencies
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 import numpy as np
 
 # project dependencies
@@ -10,6 +10,13 @@ from deepface import DeepFace
 from deepface.api.src.modules.core import service
 from deepface.commons import image_utils
 from deepface.commons.logger import Logger
+
+# from deepface.commons import functions
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+# from deepface.basemodels import VGGFace
+import os  # 👈 Add this line
+# from deepface.commons.models import Facenet512
 
 logger = Logger()
 
@@ -162,7 +169,84 @@ def analyze():
         align=input_args.get("align", True),
         anti_spoofing=input_args.get("anti_spoofing", False),
     )
+    
 
     logger.debug(demographies)
 
     return demographies
+
+
+@blueprint.route("/find", methods=["POST"])
+def find():
+    input_args = (request.is_json and request.get_json()) or (
+        request.form and request.form.to_dict()
+    )
+
+    try:
+        img = extract_image_from_request("img")
+    except Exception as err:
+        return {"exception": str(err)}, 400
+
+    db_path = input_args.get("db_path")
+    if not db_path:
+        return {"exception": "'db_path' parameter is required"}, 400
+
+    try:
+        results = DeepFace.find(
+            img_path=img,
+            db_path=db_path,
+            # model_name=input_args.get("model_name", "VGG-Face"),
+            model_name=input_args.get("model_name", "DeepFace"),
+            # detector_backend=input_args.get("detector_backend", "opencv"),
+            detector_backend=input_args.get("detector_backend", "mediapipe"),
+            distance_metric=input_args.get("distance_metric", "cosine"),
+            enforce_detection=input_args.get("enforce_detection", True),
+            align=input_args.get("align", True)
+        )
+        
+        
+        if isinstance(results, list) and len(results) > 0:
+            results_json = results[0].to_dict(orient="records")
+            return jsonify({"results": results_json})
+        else:
+            return jsonify({"results": []})
+    except Exception as err:
+        return {"exception": str(err)}, 500
+
+
+
+
+
+
+
+@blueprint.route("/search_pkl", methods=["POST"])
+def search_pkl_route():
+    input_args = (request.is_json and request.get_json()) or (
+        request.form and request.form.to_dict()
+    )
+
+    try:
+        img = extract_image_from_request("img")
+    except Exception as err:
+        return {"exception": str(err)}, 400
+
+    pkl_path = input_args.get("pkl_path")
+    if not pkl_path or not os.path.exists(pkl_path):
+        return {"exception": "'pkl_path' not found or invalid"}, 400
+
+    try:
+        response = service.search_pkl(
+            img_path=img,
+            pkl_path=pkl_path,
+            model_name=input_args.get("model_name", "Facenet512"),
+            detector_backend=input_args.get("detector_backend", "mediapipe"),
+            distance_metric=input_args.get("distance_metric", "cosine"),
+            enforce_detection=input_args.get("enforce_detection", True),
+            align=input_args.get("align", True),
+            top_k=int(input_args.get("top_k", 5)),
+            threshold=float(input_args.get("threshold", 0.7))
+        )
+        return jsonify(response)
+    except Exception as err:
+        return {"exception": str(err)}, 500
+
